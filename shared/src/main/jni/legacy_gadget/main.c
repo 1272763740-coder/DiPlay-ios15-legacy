@@ -393,7 +393,6 @@ static int find_new_netdev(char names[64][NETDEV_MAX + 1], int count, char *out)
             strncpy(fallback, entry->d_name, NETDEV_MAX);
             fallback[NETDEV_MAX] = '\0';
         }
-        found++;
     }
     closedir(dir);
     if (fallback[0]) {
