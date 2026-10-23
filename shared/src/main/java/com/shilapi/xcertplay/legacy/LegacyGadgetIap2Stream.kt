@@ -12,7 +12,7 @@ import java.util.ArrayDeque
  * files; this side only exchanges bounded payload frames over the private abstract socket, so the
  * untrusted app process never needs access to /dev/ffs-iap2.
  */
-internal class LegacyGadgetIap2Stream(
+class LegacyGadgetIap2Stream(
     private val socket: LocalSocket,
     private val input: DataInputStream,
     private val output: DataOutputStream,
@@ -54,7 +54,8 @@ internal class LegacyGadgetIap2Stream(
                         return head
                     }
                     val part = head.copyOf(maxBytes)
-                    pending[0] = head.copyOfRange(maxBytes, head.size)
+                    pending.removeFirst()
+                    pending.addFirst(head.copyOfRange(maxBytes, head.size))
                     return part
                 }
                 failure?.let { throw it }

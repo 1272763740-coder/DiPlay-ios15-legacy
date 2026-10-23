@@ -939,10 +939,10 @@
     <string name="settings_cluster_speedometer_album_color">Колір альбому для тла спідометра</string>
     <string name="settings_cluster_speedometer_album_color_description">Плавно змінює тло на колір рамки альбому. Зберігає вибрану непрозорість.</string>
     <string name="settings_legacy_wired_section">Застарілий дротовий CarPlay (експериментально)</string>
-    <string name="settings_wired_link_mode">Режим дротового з'єднання</string>
+    <string name="settings_wired_link_mode">Режим дротового з\'єднання</string>
     <string name="settings_wired_link_standard">Стандартний (iOS 16 і новіше)</string>
     <string name="settings_wired_link_legacy">Застарілий (iOS 15 і старіше)</string>
-    <string name="settings_wired_link_legacy_warning">Застарілий режим перемикає роль даних USB цього порту й перетворює головний пристрій на USB-пристрій. Потрібні root, сумісний контролер USB і бекенд MFi не на перемкненому контролері (внутрішній I2C або Remote MFi). Активне з'єднання ADB може обірватися, а iOS 16 і новіше не використовують цей шлях. Вмикайте лише для iOS 15 або старіше. Застосовується під час наступного підключення.</string>
+    <string name="settings_wired_link_legacy_warning">Застарілий режим перемикає роль даних USB цього порту й перетворює головний пристрій на USB-пристрій. Потрібні root, сумісний контролер USB і бекенд MFi не на перемкненому контролері (внутрішній I2C або Remote MFi). Активне з\'єднання ADB може обірватися, а iOS 16 і новіше не використовують цей шлях. Вмикайте лише для iOS 15 або старіше. Застосовується під час наступного підключення.</string>
     <string name="settings_wired_link_enable">Увімкнути застарілий режим</string>
     <string name="settings_legacy_wired_description">Лише для iPhone на iOS 15 або старіше. Перед увімкненням запустіть перевірку сумісності; вона повідомить про першу відсутню вимогу.</string>
     <string name="settings_legacy_check_compatibility">Перевірити сумісність</string>

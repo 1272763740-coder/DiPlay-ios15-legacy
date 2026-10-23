@@ -1020,7 +1020,7 @@
     <string name="settings_wired_link_mode">Modalità collegamento cablato</string>
     <string name="settings_wired_link_standard">Standard (iOS 16 e successivi)</string>
     <string name="settings_wired_link_legacy">Legacy (iOS 15 e precedenti)</string>
-    <string name="settings_wired_link_legacy_warning">La modalità legacy cambia il ruolo dati USB di questa porta e trasforma l'unità centrale in un dispositivo USB. Richiede root, un controller USB compatibile e un backend MFi non sul controller commutato (I2C interno o Remote MFi). Una connessione ADB attiva può cadere e iOS 16 o successivi non usa questo percorso. Abilitala solo per iOS 15 o precedenti. Si applica alla prossima connessione.</string>
+    <string name="settings_wired_link_legacy_warning">La modalità legacy cambia il ruolo dati USB di questa porta e trasforma l\'unità centrale in un dispositivo USB. Richiede root, un controller USB compatibile e un backend MFi non sul controller commutato (I2C interno o Remote MFi). Una connessione ADB attiva può cadere e iOS 16 o successivi non usa questo percorso. Abilitala solo per iOS 15 o precedenti. Si applica alla prossima connessione.</string>
     <string name="settings_wired_link_enable">Abilita modalità legacy</string>
     <string name="settings_legacy_wired_description">Solo per iPhone con iOS 15 o precedente. Esegui il controllo di compatibilità prima di abilitarla; il controllo indica il primo requisito mancante.</string>
     <string name="settings_legacy_check_compatibility">Controlla compatibilità</string>

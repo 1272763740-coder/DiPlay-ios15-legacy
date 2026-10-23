@@ -1033,7 +1033,7 @@
     <string name="settings_wired_link_mode">Wired link mode</string>
     <string name="settings_wired_link_standard">Standard (iOS 16 and later)</string>
     <string name="settings_wired_link_legacy">Legacy (iOS 15 and earlier)</string>
-    <string name="settings_wired_link_legacy_warning">Legacy mode switches this port's USB data role and turns the head unit into a USB device. It needs root, a compatible USB controller and an MFi backend that is not on the flipped controller (internal I2C or Remote MFi). A running ADB connection may drop, and iOS 16 and later do not use this path. Enable it only for iOS 15 or earlier. Apply it at the next connection.</string>
+    <string name="settings_wired_link_legacy_warning">Legacy mode switches this port\'s USB data role and turns the head unit into a USB device. It needs root, a compatible USB controller and an MFi backend that is not on the flipped controller (internal I2C or Remote MFi). A running ADB connection may drop, and iOS 16 and later do not use this path. Enable it only for iOS 15 or earlier. Apply it at the next connection.</string>
     <string name="settings_wired_link_enable">Enable legacy mode</string>
     <string name="settings_legacy_wired_description">Only for iPhones on iOS 15 or earlier. Run the compatibility check before enabling; the check reports the first missing requirement.</string>
     <string name="settings_legacy_check_compatibility">Check compatibility</string>
