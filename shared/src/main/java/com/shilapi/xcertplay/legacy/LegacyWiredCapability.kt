@@ -148,6 +148,13 @@ object LegacyWiredCapability {
             details += "SELinux is enforcing; su must be allowed to write configfs and mount FunctionFS"
         }
 
+        if (!root) {
+            return LegacyWiredCapabilityReport(
+                LegacyWiredGate.NO_ROOT,
+                LegacyWiredProbe(root = false, selinux = selinux, details = details.toList()),
+            )
+        }
+
         val udcs = runner.run("ls /sys/class/udc")
             .output.lineSequence()
             .map { it.trim() }
@@ -175,8 +182,8 @@ object LegacyWiredCapability {
                 "(zcat /proc/config.gz 2>/dev/null | grep -q 'CONFIG_USB_CONFIGFS_NCM=y')",
         ).succeeded
         val ip = runner.run("command -v ip").succeeded
-        val helper = File(helperPath).let { it.isFile && it.canExecute() }
-        if (!helper) details += "native helper $helperPath is missing or not executable"
+        val helper = File(helperPath).isFile
+        if (!helper) details += "native helper $helperPath is missing"
         if (mfiTarget == MfiTarget.USB_CH341) {
             details += "USB/CH341 MFi shares the controller that the legacy path flips"
         }
@@ -205,7 +212,6 @@ object LegacyWiredCapability {
             !ncm -> LegacyWiredGate.NO_NCM
             !ip -> LegacyWiredGate.NO_IP
             !helper -> LegacyWiredGate.NO_HELPER
-            mfiTarget == MfiTarget.USB_CH341 -> LegacyWiredGate.MFI_UNREACHABLE
             mfiReady == false -> LegacyWiredGate.MFI_UNREACHABLE
             else -> LegacyWiredGate.SUPPORTED
         }

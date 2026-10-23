@@ -93,9 +93,9 @@ class LegacyWiredController(
         try {
             log("legacy wired start mfiTarget=${config.mfiTarget}")
             if (config.mfiTarget == MfiTarget.USB_CH341) {
-                throw IOException(
-                    "Legacy wired CarPlay needs an MFi backend that survives the USB role flip. " +
-                        "A CH341 on the flipped controller disappears; use internal I2C or Remote MFI.",
+                log(
+                    "legacy warning: a CH341 on the flipped USB controller disappears after the role " +
+                        "switch; the attempt is still made because a CH341 on another controller survives",
                 )
             }
             val helperPath = LegacyGadgetController.helperPath(context)
@@ -108,7 +108,7 @@ class LegacyWiredController(
             log("legacy capability ${report.summary()}")
             if (!report.supported) throw IOException(report.reason())
             val udc = selectUdc(report.probe)
-            val rolePath = report.probe.rolePaths.first()
+            val rolePath = selectRolePath(report.probe, udc)
             log("legacy target udc=$udc rolePath=$rolePath")
 
             onStatus(CarPlayStatus.DiscoveringIphone)
@@ -326,6 +326,15 @@ class LegacyWiredController(
             preferred != null && preferred in probe.udcs -> preferred
             else -> probe.udcs.first()
         }
+    }
+
+    private fun selectRolePath(probe: LegacyWiredProbe, udc: String): String {
+        val controllerName = udc.substringBefore('.')
+        return probe.rolePaths.firstOrNull { it.contains(udc, ignoreCase = true) }
+            ?: probe.rolePaths.firstOrNull {
+                controllerName.isNotEmpty() && it.contains(controllerName, ignoreCase = true)
+            }
+            ?: probe.rolePaths.first()
     }
 
     private fun awaitLinkLocalAddress(netdev: String, timeoutMillis: Long): InetAddress {

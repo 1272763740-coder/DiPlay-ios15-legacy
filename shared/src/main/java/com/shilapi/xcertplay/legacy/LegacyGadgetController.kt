@@ -42,11 +42,12 @@ class LegacyGadgetController(
         require(UDC_PATTERN.matches(udc)) { "Invalid UDC name" }
         require(ROLE_PATH_PATTERN.matches(rolePath)) { "Invalid usb_role path" }
         require(SERIAL_PATTERN.matches(serial)) { "Invalid serial number" }
-        require(File(helperPath).let { it.isFile && it.canExecute() }) {
-            "USB gadget helper is missing or not executable at $helperPath"
+        require(File(helperPath).isFile) {
+            "USB gadget helper is missing at $helperPath"
         }
-        val command = "${shellQuote(helperPath)} --token=$token --udc=$udc " +
-            "--role=$rolePath --serial=$serial"
+        // PackageManager's extracted mode is not guaranteed to carry the exec bit; su owns chmod.
+        val command = "chmod 755 ${shellQuote(helperPath)} && " +
+            "${shellQuote(helperPath)} --token=$token --udc=$udc --role=$rolePath --serial=$serial"
         val started = ProcessBuilder("su", "-c", command)
             .redirectErrorStream(true)
             .start()
@@ -177,7 +178,7 @@ class LegacyGadgetController(
     companion object {
         private const val TAG = "diplay-legacy-gadget"
         private const val MAX_CAPTURED_OUTPUT = 8 * 1024
-        private const val HELPER_START_TIMEOUT_MILLIS = 40_000L
+        private const val HELPER_START_TIMEOUT_MILLIS = 90_000L
         private const val HELPER_STOP_TIMEOUT_MILLIS = 8_000L
         private const val HANDSHAKE_READ_TIMEOUT_MILLIS = 1_000L
         private val UDC_PATTERN = Regex("^[A-Za-z0-9_.-]{1,64}$")
