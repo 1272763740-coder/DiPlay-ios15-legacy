@@ -22,25 +22,42 @@ jobs:
         with:
           packages: platform-tools platforms;android-37.0 build-tools;36.0.0 ndk;28.2.13676358
       - uses: gradle/actions/setup-gradle@v4
-      - name: Unit tests, lint and source-only debug build
-        run: ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest :mobile:lintDebug :home:lintDebug :maphost:lintDebug :mobile:assembleDebug :home:assembleDebug :maphost:assembleDebug --stacktrace
+      - name: Assemble the debug APK
+        run: ./gradlew :mobile:assembleDebug --stacktrace
       - name: Verify the legacy USB gadget payload in the APK
         run: |
           set -euo pipefail
           apk="$(find mobile/build/outputs/apk/debug -name '*.apk' -print -quit)"
           test -n "$apk"
+          echo "APK: $apk"
+          listing="$(unzip -l "$apk")"
+          echo "$listing" | grep -E 'lib/[^/]+/.*\.so$' || true
           for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-            unzip -l "$apk" | grep -q "lib/$abi/libdiplay-gadget.so"
+            if ! echo "$listing" | grep -q "lib/$abi/libdiplay-gadget.so"; then
+              echo "missing lib/$abi/libdiplay-gadget.so in $apk" >&2
+              exit 1
+            fi
           done
           aapt2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)"
           manifest="$("$aapt2" dump xmltree --file AndroidManifest.xml "$apk")"
-          echo "$manifest" | grep -q 'android:extractNativeLibs.*0xffffffff'
+          if ! echo "$manifest" | grep -qi 'extractNativeLibs'; then
+            echo "extractNativeLibs is absent; the platform default extracts native libraries"
+          elif ! echo "$manifest" | grep -qi 'extractNativeLibs.*0xffffffff'; then
+            echo "extractNativeLibs is false, so the helper would not reach nativeLibraryDir" >&2
+            exit 1
+          fi
           echo "packaged legacy gadget helper verified in $apk"
       - name: Upload debug APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: diplay-debug-apk
           path: mobile/build/outputs/apk/debug/*.apk
+      - name: Unit tests and lint
+        run: >-
+          ./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest
+          :mobile:lintDebug :home:lintDebug :maphost:lintDebug
+          :home:assembleDebug :maphost:assembleDebug --stacktrace
       - name: Test reports
         if: always()
         uses: actions/upload-artifact@v4
