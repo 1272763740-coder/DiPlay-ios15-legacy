@@ -2101,7 +2101,8 @@ class DiPlayActivity : ComponentActivity(), AppAppearanceOwner {
                 }
             }
             label(getString(R.string.settings_legacy_wired_description), 14, MUTED)
-            val check = button(getString(R.string.settings_legacy_check_compatibility), false) {
+            val check = button(getString(R.string.settings_legacy_check_compatibility), false) {}
+            check.setOnClickListener {
                 check.text = getString(R.string.settings_legacy_checking)
                 check.isEnabled = false
                 Thread({
