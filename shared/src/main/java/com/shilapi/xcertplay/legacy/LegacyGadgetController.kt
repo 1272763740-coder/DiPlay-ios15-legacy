@@ -109,6 +109,10 @@ class LegacyGadgetController(
                         }
                         netdev = reported
                         onStatus("legacy gadget ready netdev=$reported")
+                        // Handshake reads are bounded so a dead helper cannot hang startup. Once
+                        // the link is live the iAP2 stream must block indefinitely: a timeout
+                        // would tear down a healthy session during an idle second.
+                        connected.soTimeout = 0
                         val live = LegacyGadgetIap2Stream(connected, input, dataOutput, onStatus)
                         stream = live
                         return live

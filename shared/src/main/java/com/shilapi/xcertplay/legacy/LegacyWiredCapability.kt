@@ -176,10 +176,14 @@ object LegacyWiredCapability {
         val configfs = runner.run(
             "ls -d /sys/kernel/config/usb_gadget 2>/dev/null || ls -d /config/usb_gadget 2>/dev/null",
         ).succeeded
-        val functionfs = runner.run("grep -w functionfs /proc/filesystems").succeeded
+        val functionfs = runner.run(
+            "grep -qw functionfs /proc/filesystems || " +
+                "{ command -v modprobe >/dev/null 2>&1 && modprobe -n usb_f_fs >/dev/null 2>&1; }",
+        ).succeeded
         val ncm = runner.run(
             "ls -d /sys/module/usb_f_ncm 2>/dev/null || grep -qw usb_f_ncm /proc/modules 2>/dev/null || " +
-                "(zcat /proc/config.gz 2>/dev/null | grep -q 'CONFIG_USB_CONFIGFS_NCM=y')",
+                "(zcat /proc/config.gz 2>/dev/null | grep -q 'CONFIG_USB_CONFIGFS_NCM=y') || " +
+                "{ command -v modprobe >/dev/null 2>&1 && modprobe -n usb_f_ncm >/dev/null 2>&1; }",
         ).succeeded
         val ip = runner.run("command -v ip").succeeded
         val helper = File(helperPath).isFile

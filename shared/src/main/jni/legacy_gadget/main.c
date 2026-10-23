@@ -344,6 +344,52 @@ static int run_ip(char *const argv[]) {
     return -EIO;
 }
 
+static int load_gadget_module(const char *name) {
+    static const char *candidates[] = {
+        "/system/bin/modprobe",
+        "/vendor/bin/modprobe",
+        "/sbin/modprobe",
+        "/system/xbin/modprobe",
+    };
+    const char *program = NULL;
+    for (size_t i = 0; i < sizeof(candidates) / sizeof(candidates[0]); i++) {
+        if (access(candidates[i], X_OK) == 0) {
+            program = candidates[i];
+            break;
+        }
+    }
+    if (!program) program = "modprobe";
+    pid_t pid = fork();
+    if (pid < 0) return -errno;
+    if (pid == 0) {
+        int devnull = open("/dev/null", O_WRONLY | O_CLOEXEC);
+        if (devnull >= 0) {
+            dup2(devnull, STDOUT_FILENO);
+            dup2(devnull, STDERR_FILENO);
+            close(devnull);
+        }
+        char *argv[] = { (char *)program, (char *)name, NULL };
+        execvp(program, argv);
+        _exit(127);
+    }
+    int status = 0;
+    while (waitpid(pid, &status, 0) < 0) {
+        if (errno != EINTR) return -errno;
+    }
+    if (WIFEXITED(status)) return WEXITSTATUS(status);
+    return -EIO;
+}
+
+/* Modules are usually built in on head units, but a modular kernel needs an explicit load before
+ * configfs can create the function directories. Failures are harmless for built-ins. */
+static void load_gadget_modules(void) {
+    static const char *modules[] = { "libcomposite", "usb_f_fs", "usb_f_ncm" };
+    for (size_t i = 0; i < sizeof(modules) / sizeof(modules[0]); i++) {
+        int rc = load_gadget_module(modules[i]);
+        log_line("modprobe %s rc=%d", modules[i], rc);
+    }
+}
+
 static int snapshot_net(char names[64][NETDEV_MAX + 1], int capacity) {
     DIR *dir = opendir("/sys/class/net");
     if (!dir) return -errno;
@@ -592,6 +638,7 @@ static int publish_descriptors(int ep0) {
 }
 
 static int setup_gadget(const char *gadget_base, const char *udc, const char *serial) {
+    load_gadget_modules();
     snprintf(g_udc, sizeof(g_udc), "%s", udc);
     snprintf(g_gadget, sizeof(g_gadget), "%s/%s", gadget_base, GADGET_NAME);
     mkdir_one("/sys/kernel/config");

@@ -32,12 +32,22 @@ class LegacyGadgetIap2Stream(
 
     override fun send(data: ByteArray) {
         require(data.isNotEmpty()) { "iAP2 payload must not be empty" }
-        require(data.size <= LegacyGadgetProtocol.MAX_PAYLOAD_BYTES) {
-            "iAP2 payload exceeds ${LegacyGadgetProtocol.MAX_PAYLOAD_BYTES} bytes"
-        }
         synchronized(writeLock) {
             if (closed || closing) throw IOException("USB gadget iAP2 link is closed")
-            output.write(LegacyGadgetProtocol.encode(LegacyGadgetProtocol.TYPE_TO_PHONE, data))
+            // The iAP2 link is a byte stream, so a logical write may span several helper frames.
+            // The helper only accepts bounded frames; splitting preserves the stream and keeps the
+            // per-transfer size inside what FunctionFS hands to the iPhone.
+            var offset = 0
+            while (offset < data.size) {
+                val end = minOf(offset + LegacyGadgetProtocol.MAX_PAYLOAD_BYTES, data.size)
+                output.write(
+                    LegacyGadgetProtocol.encode(
+                        LegacyGadgetProtocol.TYPE_TO_PHONE,
+                        data.copyOfRange(offset, end),
+                    ),
+                )
+                offset = end
+            }
             output.flush()
         }
     }
