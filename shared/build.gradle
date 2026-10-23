@@ -1,0 +1,87 @@
+plugins {
+    id 'com.android.library'
+}
+android {
+    namespace = 'com.shilapi.xcertplay.shared'
+    compileSdk = 37
+
+    defaultConfig {
+        minSdk = 24
+        consumerProguardFiles 'ambient-consumer-rules.pro'
+        targetSdk = 37
+
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64'
+        }
+
+        externalNativeBuild {
+            ndkBuild {
+                arguments 'APP_PLATFORM=android-24'
+            }
+        }
+
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+    ndkVersion = '28.2.13676358'
+    externalNativeBuild {
+        ndkBuild {
+            path = file('src/main/jni/Android.mk')
+        }
+    }
+    buildFeatures {
+        // Geely/Lynk head-unit input API (com.geely.inputservice); declarations in src/main/aidl.
+        aidl true
+    }
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+dependencies {
+    implementation libs.androidx.app
+    implementation libs.bouncycastle
+    implementation libs.jmdns
+    testImplementation libs.junit
+    testImplementation 'org.robolectric:robolectric:4.17'
+}
+
+// The root gadget helper is an executable, not a library: ndk-build does not put it in libs/,
+// so stage it as libdiplay-gadget.so in a generated jniLibs directory. The app modules enable
+// jniLibs legacy packaging so it is extracted into nativeLibraryDir with the exec bit set.
+def legacyGadgetAbis = ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64']
+def legacyGadgetJniLibs = layout.buildDirectory.dir('generated/legacyGadgetJniLibs')
+android.sourceSets.getByName('main').jniLibs.srcDir(legacyGadgetJniLibs)
+
+def copyLegacyGadget = tasks.register('copyLegacyGadget') {
+    description = 'Stages the root USB gadget helper as a packaged executable payload.'
+    dependsOn('externalNativeBuildDebug')
+    def outputDir = legacyGadgetJniLibs
+    def ndkBuildOut = layout.buildDirectory.dir('intermediates/ndkBuild/debug')
+    doLast {
+        def root = ndkBuildOut.get().asFile
+        def intermediates = layout.buildDirectory.dir('intermediates').get().asFile
+        legacyGadgetAbis.each { abi ->
+            def candidates = [
+                new File(root, "libs/${abi}/diplay_gadget"),
+                new File(root, "obj/local/${abi}/diplay_gadget"),
+            ]
+            def binary = candidates.find { it.isFile() }
+            if (binary == null && intermediates.isDirectory()) {
+                // AGP moved per-variant native output before; keep the exec payload independent of that.
+                binary = fileTree(dir: intermediates, include: "**/${abi}/diplay_gadget")
+                    .files.findAll { it.isFile() }.max { it.lastModified() }
+            }
+            if (binary == null) {
+                throw new GradleException(
+                    "ndk-build did not produce the USB gadget helper. Checked: " + candidates.join(', ')
+                )
+            }
+            def target = new File(outputDir.get().asFile, "${abi}/libdiplay-gadget.so")
+            target.parentFile.mkdirs()
+            target.bytes = binary.bytes
+            target.setExecutable(true, false)
+            logger.lifecycle("Packaged USB gadget helper ${binary} -> ${target}")
+        }
+    }
+}
+tasks.named('preBuild') { dependsOn(copyLegacyGadget) }
