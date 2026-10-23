@@ -48,19 +48,24 @@ dependencies {
 // The root gadget helper is an executable, not a library: ndk-build does not put it in libs/,
 // so stage it as libdiplay-gadget.so in a generated jniLibs directory. The app modules enable
 // jniLibs legacy packaging so it is extracted into nativeLibraryDir with the exec bit set.
-def legacyGadgetAbis = ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64']
-def legacyGadgetJniLibs = layout.buildDirectory.dir('generated/legacyGadgetJniLibs')
-android.sourceSets.getByName('main').jniLibs.srcDir(legacyGadgetJniLibs)
+abstract class StageLegacyGadgetTask extends DefaultTask {
+    @Internal
+    abstract DirectoryProperty getNdkBuildDirectory()
 
-def copyLegacyGadget = tasks.register('copyLegacyGadget') {
-    description = 'Stages the root USB gadget helper as a packaged executable payload.'
-    dependsOn('externalNativeBuildDebug')
-    def outputDir = legacyGadgetJniLibs
-    def ndkBuildOut = layout.buildDirectory.dir('intermediates/ndkBuild/debug')
-    doLast {
-        def root = ndkBuildOut.get().asFile
-        def intermediates = layout.buildDirectory.dir('intermediates').get().asFile
-        legacyGadgetAbis.each { abi ->
+    @Internal
+    abstract DirectoryProperty getIntermediatesDirectory()
+
+    @Input
+    abstract ListProperty<String> getAbis()
+
+    @OutputDirectory
+    abstract DirectoryProperty getOutputDirectory()
+
+    @TaskAction
+    void stage() {
+        def root = ndkBuildDirectory.get().asFile
+        def intermediates = intermediatesDirectory.get().asFile
+        abis.get().each { abi ->
             def candidates = [
                 new File(root, "libs/${abi}/diplay_gadget"),
                 new File(root, "obj/local/${abi}/diplay_gadget"),
@@ -68,20 +73,52 @@ def copyLegacyGadget = tasks.register('copyLegacyGadget') {
             def binary = candidates.find { it.isFile() }
             if (binary == null && intermediates.isDirectory()) {
                 // AGP moved per-variant native output before; keep the exec payload independent of that.
-                binary = fileTree(dir: intermediates, include: "**/${abi}/diplay_gadget")
-                    .files.findAll { it.isFile() }.max { it.lastModified() }
+                binary = newestHelperUnder(intermediates, abi)
             }
             if (binary == null) {
                 throw new GradleException(
                     "ndk-build did not produce the USB gadget helper. Checked: " + candidates.join(', ')
                 )
             }
-            def target = new File(outputDir.get().asFile, "${abi}/libdiplay-gadget.so")
+            def target = new File(outputDirectory.get().asFile, "${abi}/libdiplay-gadget.so")
             target.parentFile.mkdirs()
             target.bytes = binary.bytes
             target.setExecutable(true, false)
             logger.lifecycle("Packaged USB gadget helper ${binary} -> ${target}")
         }
     }
+
+    private static File newestHelperUnder(File dir, String abi) {
+        File newest = null
+        def pending = [dir]
+        while (!pending.isEmpty()) {
+            def current = pending.removeLast()
+            def children = current.listFiles()
+            if (children == null) continue
+            children.each { child ->
+                if (child.isDirectory()) {
+                    pending.add(child)
+                } else if (child.name == 'diplay_gadget' && child.parentFile?.name == abi) {
+                    if (newest == null || child.lastModified() > newest.lastModified()) newest = child
+                }
+            }
+        }
+        return newest
+    }
 }
-tasks.named('preBuild') { dependsOn(copyLegacyGadget) }
+
+androidComponents {
+    onVariants(selector().all()) { variant ->
+        def variantName = variant.name
+        def stageHelper = tasks.register("stageLegacyGadget${variantName.capitalize()}", StageLegacyGadgetTask) {
+            description = "Stages the root USB gadget helper for the ${variantName} variant."
+            dependsOn(tasks.matching { it.name == "externalNativeBuild${variantName.capitalize()}" })
+            ndkBuildDirectory = layout.buildDirectory.dir("intermediates/ndkBuild/${variantName}")
+            intermediatesDirectory = layout.buildDirectory.dir('intermediates')
+            abis = ['arm64-v8a', 'armeabi-v7a', 'x86', 'x86_64']
+            outputDirectory = layout.buildDirectory.dir("generated/legacyGadgetJniLibs/${variantName}")
+            outputs.upToDateWhen { false }
+        }
+        variant.sources.jniLibs?.addGeneratedSourceDirectory(stageHelper) { it.outputDirectory }
+    }
+}
