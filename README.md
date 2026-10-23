@@ -1,67 +1,111 @@
-# DiPlay
+# DiPlay — legacy wired CarPlay for iOS 15 and earlier
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
-**CarPlay for compatible BYD Android head units.** Wired and wireless, with the familiar DiAuto interface. Independent app: `com.shihab.diplay`.
+This repository is a derivative of **DiPlay 0.2.21** that adds an experimental **legacy wired USB
+CarPlay** path for iPhones that stop at iOS 15 (target device: iPhone 7, iOS 15.8.3). The standard
+wired (iOS 16+) and wireless paths come from upstream and are unchanged. Install the APK on the
+**car head unit**, not the iPhone.
 
-> **BYD support scope:** These projects focus on BYD cars. They may work on other brands, but other brands are unsupported and there are no plans to add support or fix brand-specific incompatibilities.
+> **Status:** the legacy path is implemented and CI builds pass. It has **not** been validated end to
+> end on a car. The USB role switch and gadget setup depend on the head unit firmware and can
+> interrupt ADB or other USB devices. Treat every build here as a test build.
 
-[Download & website](https://shihabal3amri.github.io/DiPlay/) · [Release](https://github.com/shihabal3amri/DiPlay/releases/tag/v0.2.21) · [Report a problem](https://github.com/shihabal3amri/DiPlay/issues/new/choose)
+## What the legacy path does
 
-![DiPlay home](site/assets/home.png)
+- Sends Apple's vendor request `0x51` so the iPhone leaves the host bus, then switches the head
+  unit's USB port from host to device.
+- Presents a FunctionFS iAP2 + CDC-NCM composite gadget and authenticates MFi over that link.
+- Identifies as `IAP2-USBHost` (interface 1) without claiming the standard wired profile, and never
+  sends or answers `0x52`, `0x4300` or `0x4301` on this path.
+- Carries AirPlay and mDNS over the USB network (`169.254.1.1` / `fe80::1`).
 
-## 0.2.21 — public preview
+The root helper is a PIE executable packaged for `arm64-v8a`, `armeabi-v7a`, `x86` and `x86_64` and
+extracted from `nativeLibraryDir` on install. CI checks the packaged helper with
+`scripts/verify_legacy_gadget_apk.py`.
 
-Install on the **car**, not the iPhone. No jailbreak, dongle, Mac, account or authentication server is required for use. Core CarPlay does not require ADB; optional dashboard, battery, wheel-speed and parked-video features do. Your head unit must permit APK installation. The APK supports Android 7.0+ (API 24); Android 7.0–8.1 support is not yet confirmed on a vehicle. Wireless supports Wi-Fi Direct, the car’s existing hotspot or Existing Wi-Fi / Same LAN. Android 7.0–9 Wi-Fi Direct uses a firmware-dependent legacy path with generated group credentials and unverified requested frequency; see [Android 9 Wi-Fi Direct](docs/ANDROID9_WIFI_DIRECT.md). Android 10+ verifies its negotiated group frequency.
+## Download
 
-- Wired USB and wireless CarPlay with local authentication.
-- BYD HUD navigation with arrows, distance and street names on verified firmware.
-- Car hotspot support, improved audio buffering and saved receive diagnostics.
-- Automatic address discovery, fixed-channel Wi-Fi fallbacks and successful-configuration memory.
-- Icon/text size, resolution and frame rate; applying a display change reconnects CarPlay.
-- Local diagnostic export. Reports are sent only if you choose to share them.
-- Separate installation alongside DiAuto. Run one projection app at a time.
+[Releases](https://github.com/1272763740-coder/DiPlay-ios15-legacy/releases) ·
+[Issues](https://github.com/1272763740-coder/DiPlay-ios15-legacy/issues)
 
-This is **not an Apple-certified product**. The APK bundles an experimental accessory identity recovered from public Carlinkit firmware, not a newly provisioned MFi identity for DiPlay. A bundled private key is extractable. Acceptance after future iOS updates, reliability across head units and suitability of that identity for general distribution are unresolved. This release invites community testing; it is not a guarantee of universal compatibility.
+The current release is `v0.2.21-legacy.1`. Its APK is a **source-only debug build**:
 
-Earlier releases were tested on the development DiLink5.1 car: live windshield guidance and street names work, Car hotspot now starts CarPlay, and Wi-Fi Direct performance is substantially improved. Audio underrun recovery is improved in 0.2.15; remaining cutouts need current diagnostic reports. The 0.2.16 software Opus microphone fallback was accepted on a BOS Mini A1 head unit (Android 9) with an iPhone 12 on iOS 27. The floating-map test build was installed on the development DiLink 5.1 car; feedback led to the pinch corrections in 0.2.9. Earlier wheel-speed and video contributions were tested on a BYD Tang with DiLink 5.0 and an iPhone 15 Pro on iOS 27; wheel-speed dead reckoning in tunnels remains unverified. Broader head-unit and iOS compatibility is not guaranteed. The HUD firmware scope and cleanup limits are documented in [BYD navigation](docs/BYD_NAVIGATION.md).
+- Package `com.shihab.diplay.hudtest`, version `0.2.21-hud-test`, debug-signed. It installs alongside
+  the regular `com.shihab.diplay`.
+- It contains **no MFi identity**. `assets/offline-mfi/identity.pk8` and `certificate.p7b` are
+  excluded from this source tree and from CI builds.
+- CarPlay authentication therefore needs an MFi backend that survives the USB role flip: the head
+  unit's internal I2C MFi, Remote MFi, or a CH341 attached to a different USB controller. The
+  `LOCAL` offline backend only works in a build where you inject identity assets yourself (see
+  [Build](#build)).
+- Without a working MFi backend the CarPlay screen can open, but authentication cannot complete.
 
-## What’s new in 0.2.21
+## Requirements
 
-- Music plays in step with the iPhone again: on 0.2.20, pause, skip and track changes could come seconds late, and the speed could wobble.
-- Wired CarPlay recovers by itself when the iPhone never opens CarPlay, no longer waits forever after **Disconnect**, and keeps a connection that has already recovered.
-- DiPlay no longer closes when the microphone is used on head units without Android's own Opus encoder, and music comes back after a call or a short interruption.
-- Wireless CarPlay says why it cannot start; on BYD head units the dashboard is handed back to the car when CarPlay ends, and DiPlay no longer closes from the DiYou desktop card.
-- DiPlay installs on Android 7.0 and is available in Italian.
-- New options, off by default: temporary system bars, black rounded corners, a play/pause wheel key, double press for Siri, importing the car hotspot details, a home-screen bubble and the car's own music rhythm.
+- A rooted BYD-compatible Android head unit (Android 7.0+), with `su` available to the app.
+- configfs with FunctionFS and `usb_f_ncm` (built in or loadable with `modprobe`), a writable UDC,
+  and a writable USB role switch for the port the iPhone uses.
+- An MFi backend as described above.
+- For the legacy path, an iPhone on iOS 15 or earlier. iOS 16 and later use the standard wired path.
 
-See [0.2.21 release notes](docs/RELEASE-NOTES-0.2.21.md) and [validation](docs/VALIDATION.md) for contribution links and remaining physical tests. General stutter, calls/Siri, decoder and model-specific reports still need current-device evidence. [0.2.20 notes](docs/RELEASE-NOTES-0.2.20.md) remain available as historical guidance.
+Root, UDC and role-switch support are firmware specific. Use **Settings → Advanced → Legacy wired
+CarPlay (experimental) → Check compatibility**; it reports the first missing requirement instead of
+failing silently.
 
-If a problem remains, reproduce it on **0.2.21**, then use **Settings → Diagnostics → Save diagnostic report**. Android 10+ normally saves to **Downloads/DiPlay**; Android 7.0–9 asks for storage access and saves there too. If unavailable, use **View report** or **Share** from the confirmation, which identifies external/private fallback storage. Review the `.txt` and add it to a matching [existing issue](https://github.com/shihabal3amri/DiPlay/issues), or [create one](https://github.com/shihabal3amri/DiPlay/issues/new/choose). Include vehicle/head-unit model, exact firmware and Android/DiLink, phone/iOS, connection backend, relevant settings, steps and failure time. Reports are shared only when you choose; never post your hotspot password.
+## Use
 
-## Documentation
+1. Install the APK on the head unit and open it.
+2. Open **Settings → Advanced → Legacy wired CarPlay (experimental)** and press **Check compatibility**.
+3. Select **Legacy (iOS 15 and earlier)**, confirm the warning, and let it apply at the next
+   connection.
+4. Connect the iPhone by USB and watch the diagnostic log for `legacy ...` lines.
+5. To go back, select the standard mode and reconnect. iOS 16+ must use the standard mode.
 
-[Existing Wi-Fi / Same LAN](docs/EXISTING_WIFI.md) keeps the iPhone and head unit
-on an external router. See the guide for setup, build requirements and the
-BYD DiLink 4.0 / Android 10 clean-install validation result.
+Legacy mode can drop a running ADB connection and disturbs other USB gadgets on the same controller.
+Do not enable it on a port you still need for ADB.
 
-- [Install and connect](docs/INSTALL.md)
-- [Compatibility and troubleshooting](docs/COMPATIBILITY.md)
-- [Smooth wireless CarPlay](docs/SMOOTH_WIRELESS.md)
-- [Privacy and diagnostic reports](docs/PRIVACY.md)
-- [Build from source](docs/BUILD.md) — select `mobile` for the main DiPlay app; `maphost` is a map sample.
-- [Validation](docs/VALIDATION.md)
-- [Release notes](CHANGELOG.md)
-- [Credits and licenses](docs/THIRD_PARTY_NOTICES.md)
+## Build
 
-The app and the website source include English, Arabic, Russian, Ukrainian, Spanish, Simplified Chinese, Traditional Chinese (Taiwan), and Japanese. Traditional Chinese uses Taiwan wording; the app also recognizes Hong Kong/Macao and explicit Hant selections without claiming separate regional translations. Choose the app language in Settings; on Android 13+, it stays synchronized with Android’s per-app language setting. See the [Traditional Chinese guide](README.zh-TW.md) for installation, settings, troubleshooting, privacy and build instructions.
+CI (`.github/workflows/android.yml`) builds the debug APK, verifies the helper payload, then runs
+unit tests and lint. Local builds need JDK 25, Android SDK 37 and NDK 28.2.13676358:
+
+```sh
+./gradlew :mobile:assembleDebug                 # source-only, no MFi identity
+./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest \
+  :mobile:lintDebug :home:lintDebug :maphost:lintDebug
+```
+
+For a standalone car-test APK with local offline MFi, provide your own identity assets and build the
+standalone variant:
+
+```sh
+DIPLAY_AUTH_ASSETS_DIR=/path/to/assets ./gradlew :mobile:assembleStandaloneDebug
+```
+
+`/path/to/assets` must contain `offline-mfi/identity.pk8` and `offline-mfi/certificate.p7b`. Never
+commit those files; the build rejects unexpected credentials in APK assets.
+
+## Verification status
+
+- CI passes: assemble, helper verification, unit tests, lint and test reports.
+- The APK is checked for the four ABI helpers, `extractNativeLibs=true`, and the legacy markers in
+  dex. The release notes record the exact build fingerprint and SHA-256.
+- Still requires a car: `0x51` acceptance, the iPhone leaving the host bus, the role switch, MFi,
+  NCM bring-up, mDNS discovery and the first AirPlay frame.
+
+## Limits
+
+- Not Apple-certified and not affiliated with Apple or BYD. BYD is the only supported brand.
+- The legacy path only helps iOS 15 and earlier; it is not a fallback for iOS 16+.
+- Role switching and gadget creation are firmware-dependent and may fail or leave USB in a changed
+  state.
+- The bundled helper runs as root and writes to configfs. Read the source before installing.
 
 ## Source and credits
 
-Based on [xcertplay](https://github.com/shilapi/xcertplay), GPL-3.0. The home/settings UI and website adapt [DiAuto](https://github.com/shihabal3amri/DiAuto), AGPL-3.0; that license is included in `docs/licenses`. Preserve those notices when distributing modifications. CarPlay and its icon belong to Apple Inc.; no Apple or BYD affiliation or endorsement is implied.
-
-This repository starts with a clean public source snapshot. Local research, tester reports and release-signing secrets are excluded. The complete source corresponding to the APK is provided with every release; experimental runtime identity assets are described separately in the build instructions and notices.
-
-## Local release packaging
-
-The release APK intentionally contains the experimental accessory identity. The Git repository and source archive exclude all accessory and Android signing keys; tests generate synthetic identities at runtime. Source/CI builds omit runtime identity assets by default. Local release builds explicitly select an external asset directory. Publishing the APK makes its bundled identity extractable; building locally does not preserve that identity's confidentiality.
+Based on [DiPlay](https://github.com/shihabal3amri/DiPlay) 0.2.21 (GPL-3.0), which builds on
+[xcertplay](https://github.com/shilapi/xcertplay) (GPL-3.0) and adapts
+[DiAuto](https://github.com/shihabal3amri/DiAuto) for the home/settings UI (AGPL-3.0). License
+notices are kept in `docs/licenses` and `LICENSE`; preserve them when redistributing modifications.
+The application id `com.shihab.diplay` and the upstream name are retained for compatibility.

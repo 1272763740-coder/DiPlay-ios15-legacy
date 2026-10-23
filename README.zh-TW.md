@@ -1,75 +1,102 @@
-# DiPlay
+# DiPlay — 適用於 iOS 15 及更舊版本的舊版有線 CarPlay
 
 [English](README.md) · [简体中文](README.zh-CN.md) · [繁體中文](README.zh-TW.md)
 
-為相容的比亞迪 Android 車機提供有線與無線 CarPlay，採用熟悉的 DiAuto 介面。DiPlay 是獨立應用程式，正式版套件名稱為 `com.shihab.diplay`。
+本儲存庫以 **DiPlay 0.2.21** 為基礎，新增一條實驗性的 **舊版 USB 有線 CarPlay** 路徑，適用於停留在
+iOS 15 的 iPhone（目標裝置：iPhone 7，iOS 15.8.3）。標準有線（iOS 16+）與無線路徑來自上游，本次
+工作未予變更。APK 安裝在**車機**上，不是 iPhone。
 
-> 專案以比亞迪汽車為主要支援對象。其他品牌可能可以執行，但不在一般支援範圍內；特定韌體的個別整合不代表整個品牌受到支援。
+> **狀態：** 舊版路徑的軟體端已實作，CI 建置通過；**尚未在車機上完成端對端驗證**。USB 角色切換與
+> gadget 取決於車機韌體，可能中斷 ADB 或其他 USB 裝置。請把這裡的每個建置都視為測試包。
 
-[下載與繁體中文網站](https://shihabal3amri.github.io/DiPlay/zh-Hant/) · [0.2.21 版本](https://github.com/shihabal3amri/DiPlay/releases/tag/v0.2.21) · [回報問題](https://github.com/shihabal3amri/DiPlay/issues/new/choose)
+## 舊版路徑做了什麼
 
-![DiPlay 主畫面](site/assets/home.png)
+- 送出 Apple 廠商請求 `0x51`，讓 iPhone 離開 host 匯流排，再把車機 USB 埠從 host 切為 device。
+- 呈現 FunctionFS iAP2 + CDC-NCM 複合 gadget，並在該連結上完成 MFi 認證。
+- 以 `IAP2-USBHost`（interface 1）完成 identification，不宣告標準有線 profile；此路徑從不送出
+  或回應 `0x52`、`0x4300`、`0x4301`。
+- 透過 USB 網路（`169.254.1.1` / `fe80::1`）承載 AirPlay 與 mDNS。
 
-## 開始使用
+root helper 是 PIE 執行檔，依 `arm64-v8a`、`armeabi-v7a`、`x86`、`x86_64` 封裝，安裝時解壓到
+`nativeLibraryDir`。CI 以 `scripts/verify_legacy_gadget_apk.py` 驗證它確實在 APK 內。
 
-請將 DiPlay 安裝在**車機上，而非 iPhone**。車機需要允許安裝 APK，且 Android 版本須為 7.0 以上（API 24+）；Android 7.0–8.1 尚待實車驗證。使用時無須越獄、轉接盒、Mac、帳號或遠端認證伺服器。
+## 下載
 
-有線與無線 CarPlay 的核心功能不需要 ADB。部分儀表板、車輛資料、方向盤或停車影片功能需要相容韌體及已授權的網路 ADB，請依各設定的說明操作。
+[Releases](https://github.com/1272763740-coder/DiPlay-ios15-legacy/releases) ·
+[Issues](https://github.com/1272763740-coder/DiPlay-ios15-legacy/issues)
 
-1. 停車後安裝 APK，開啟 DiPlay 並授予所需權限。
-2. 無線模式可選車載熱點、Wi-Fi Direct 或現有 Wi-Fi／同一區域網路；有線模式請使用支援資料傳輸的 USB 連接埠與傳輸線。
-3. 在 iPhone 上接受 CarPlay 提示。連線前先關閉其他手機投影應用程式。
+目前版本為 `v0.2.21-legacy.1`。附件 APK 是**僅原始碼建置的偵錯包**：
 
-完整步驟請見[安裝與連線指南](docs/INSTALL.zh-TW.md)。
+- 套件名稱 `com.shihab.diplay.hudtest`，版本 `0.2.21-hud-test`，偵錯簽章；可與一般
+  `com.shihab.diplay` 並存安裝。
+- **不含 MFi 身分**。`assets/offline-mfi/identity.pk8` 與 `certificate.p7b` 不在本原始碼樹中，也
+  不會進入 CI 建置。
+- 因此 CarPlay 認證需要能在 USB 角色翻轉後繼續運作的 MFi 後端：車機內部 I2C MFi、Remote MFi，
+  或掛在另一個 USB 控制器上的 CH341。`LOCAL` 離線後端只有在自行注入身分資產的建置中才可用
+  （見[建置](#建置)）。
+- 沒有可用的 MFi 後端時，CarPlay 畫面可以開啟，但認證無法完成。
 
-## 切換為繁體中文
+## 需求
 
-開啟 **設定 → 語言 → 應用程式語言**，選擇 **繁體中文**，再按 **套用**。也可選擇 **跟隨系統**。
+- 已 root 的 BYD 相容 Android 車機（Android 7.0+），應用程式可呼叫 `su`。
+- configfs 支援 FunctionFS 與 `usb_f_ncm`（核心內建或可透過 `modprobe` 載入）、可寫入的 UDC，以及
+  可寫入、對應 iPhone 所用連接埠的 USB 角色切換。
+- 任一上述可用的 MFi 後端。
+- 舊版路徑僅適用於 iOS 15 及更舊版本；iOS 16 及更新版本請使用標準有線路徑。
 
-Android 13 以上會與 Android 的個別應用程式語言設定同步；Android 7.0–12 由 DiPlay 儲存語言選擇。繁體中文使用臺灣用語；香港、澳門及明確指定 `Hant` 的語言選擇共用這份翻譯，並未提供獨立的地區版本。DiPlay 的語言選擇控制其自身介面，CarPlay 內的應用程式語言則由 iPhone 及各應用程式管理。
+root、UDC 與角色切換的支援情形因韌體而異。請用 **設定 → 進階 → 舊版有線 CarPlay（實驗性）→
+檢查相容性**，它會回報第一個缺少的條件，而不是無聲失敗。
 
-選用的 **DiPlay Home** 啟動器與 **DiPlay map host** 範例也提供繁體中文，依各自的 Android 系統語言顯示，不共用主要 DiPlay 應用程式的語言偏好。第三方小工具與應用程式名稱由提供者決定。
+## 使用
 
-## 主要功能與 0.2.21 更新
+1. 在車機上安裝 APK 並開啟。
+2. 進入 **設定 → 進階 → 舊版有線 CarPlay（實驗性）**，點 **檢查相容性**。
+3. 選擇 **舊版（iOS 15 及更舊版本）**，確認警告，讓它在下次連線時生效。
+4. 以 USB 連接 iPhone，觀察診斷日誌裡的 `legacy ...` 行。
+5. 需要還原時，改回標準模式並重新連線。iOS 16+ 必須使用標準模式。
 
-- 有線 USB 與無線 CarPlay，使用本機認證。
-- 相容韌體上的比亞迪抬頭顯示器（HUD）與儀表板導航提示。
-- 解析度、影格率、圖示與文字大小調整；依設定說明，在重新連線後套用。
-- 0.2.21 修正 0.2.20 中音樂落後於 iPhone 的問題，暫停與切歌不再延遲數秒；iPhone 一直不開啟 CarPlay 時，有線連線會自動重試；在沒有 Android 內建 Opus 編碼器的車機上使用麥克風時，DiPlay 不再閃退。
-- CarPlay 結束後，DiPlay 會把儀表交還給原車；DiPlay 可安裝在 Android 7.0 上，並新增義大利文。新選項預設關閉：暫時顯示系統列（5 秒）、黑色圓角遮罩、方向盤播放／暫停按鈕、雙擊觸發 Siri、匯入車機熱點詳情（實驗性）、桌面懸浮球（實驗性）、車輛原廠音樂律動。
-- 可在 **設定 → 關於 → 在手機上備份或還原** 透過 QR 碼備份設定，更新時可選其他安裝程式。
-- 本機診斷報告匯出，只有在你選擇分享後才會傳送。
-- 實驗性選項預設關閉，請停車後依說明測試。
+舊版模式會中斷執行中的 ADB 連線，並干擾同一控制器上的其他 USB gadget。不要對仍需 ADB 的連接埠
+啟用它。
 
-[英文版本說明](docs/RELEASE-NOTES-0.2.21.md)與[驗證紀錄](docs/VALIDATION.md)記錄完整變更、已知限制及尚待實車測試的項目。自動化測試通過不代表所有車型、iOS、Siri 或通話情境都已驗證。
+## 建置
 
-## 繁體中文文件
+CI（`.github/workflows/android.yml`）建置 debug APK、驗證 helper 承載內容，然後執行單元測試與
+lint。本機建置需要 JDK 25、Android SDK 37 與 NDK 28.2.13676358：
 
-| 文件 | 內容 |
-| --- | --- |
-| [安裝與連線](docs/INSTALL.zh-TW.md) | 首次使用、權限、USB、熱點及 Wi-Fi 模式 |
-| [設定與疑難排解](docs/SETTINGS.zh-TW.md) | 設定分類、重新連線、畫面與聲音、診斷回報 |
-| [隱私權與診斷](docs/PRIVACY.zh-TW.md) | 資料儲存、權限、報告分享及更新檢查 |
-| [從原始碼建置](docs/BUILD.zh-TW.md) | Windows／Android Studio、建置環境、APK 路徑及認證素材 |
-| [翻譯維護](docs/LOCALIZATION.zh-TW.md) | 臺灣用語、資源檢查與文件同步方式 |
-| [本次繁體中文驗證紀錄](docs/VALIDATION.zh-TW.md) | 測試、建置結果及完整 CI 的未解失敗 |
+```sh
+./gradlew :mobile:assembleDebug                 # 僅原始碼，無 MFi 身分
+./gradlew :shared:testDebugUnitTest :common:testDebugUnitTest :home:testDebugUnitTest \
+  :mobile:lintDebug :home:lintDebug :maphost:lintDebug
+```
 
-進階車型整合可參考[比亞迪導航](docs/BYD_NAVIGATION.md)、[Wi-Fi Direct 舊版限制](docs/ANDROID9_WIFI_DIRECT.md)及[現有 Wi-Fi 指南](docs/EXISTING_WIFI.md)；這些深入文件目前為英文。
+要建置含本機離線 MFi 的獨立車機測試包，請提供自己的身分資產並選用 standalone 變體：
 
-## 相容性與公開預覽版限制
+```sh
+DIPLAY_AUTH_ASSETS_DIR=/path/to/assets ./gradlew :mobile:assembleStandaloneDebug
+```
 
-這是**未經 Apple 認證的公開預覽版**。公開 APK 包含從公開 Carlinkit 韌體取得的實驗性配件身分，並非為 DiPlay 新核發的 MFi 身分；內含私密金鑰可被擷取。未來 iOS 是否接受、各車機的可靠性及該身分是否適合公開散布，仍有未解問題。
+`/path/to/assets` 下必須有 `offline-mfi/identity.pk8` 與 `offline-mfi/certificate.p7b`。不要提交
+這些檔案；建置會拒絕 APK assets 中出現未宣告的憑證。
 
-Wi-Fi Direct 在 Android 7.0–9 使用依賴韌體的舊版路徑，無法驗證實際協商頻率；Android 10 以上可驗證。車機支援連上 5 GHz Wi-Fi，不代表能建立 5 GHz Wi-Fi Direct 群組。遇到卡頓可先使用車載熱點、30 fps、預設圖示大小及較低解析度，保留 HEVC 關閉。
+## 驗證狀態
 
-更新時使用相同套件與相符簽章才能保留設定及配對資料；請勿只憑 APK 檔名判斷更新相容性。安裝限制取決於車機韌體。
+- CI 通過：assemble、helper 驗證、單元測試、lint 與測試報告。
+- APK 會驗證 4 個 ABI 的 helper、`extractNativeLibs=true` 以及 dex 中的 legacy 標記。Release
+  說明記錄了確切的建置指紋與 SHA-256。
+- 仍需實機驗證：`0x51` 是否被接受、iPhone 是否離開 host 匯流排、角色切換、MFi、NCM 起鏈、mDNS
+  探索與 AirPlay 首幀。
 
-## 回報問題
+## 限制
 
-重現問題後，開啟 **設定 → 診斷 → 儲存診斷報告**，記錄故障時間並檢查 TXT 內容，再附到[相關問題](https://github.com/shihabal3amri/DiPlay/issues)或[新增問題](https://github.com/shihabal3amri/DiPlay/issues/new/choose)。請提供車型／車機、Android／DiLink／完整韌體版本、iPhone／iOS、連線方式、相關設定與重現步驟。不要公開熱點密碼或認證檔案。詳見[診斷回報步驟](docs/SETTINGS.zh-TW.md#匯出診斷報告與回報問題)。
+- 非 Apple 認證產品，與 Apple、BYD 均無關聯。僅支援 BYD 品牌。
+- 舊版路徑只對 iOS 15 及更舊版本有意義，不能作為 iOS 16+ 的備援方案。
+- 角色切換與 gadget 建立取決於韌體，可能失敗，或讓 USB 停留在被改變的狀態。
+- helper 以 root 執行並寫入 configfs。安裝前請閱讀原始碼。
 
-## 原始碼與授權
+## 來源與授權
 
-專案基於 [xcertplay](https://github.com/shilapi/xcertplay)（GPL-3.0）。主畫面、設定介面及網站改編自 [DiAuto](https://github.com/shihabal3amri/DiAuto)（AGPL-3.0）；相關授權位於 `docs/licenses`。散布修改版本時請保留[第三方聲明與授權](docs/THIRD_PARTY_NOTICES.md)。CarPlay 與其圖示屬於 Apple Inc.；專案不代表 Apple 或比亞迪的認可。
-
-一般原始碼／CI 建置預設不包含執行時認證素材；獨立連線測試需要外部素材。Git 與公開原始碼壓縮檔排除認證私密金鑰、Android 簽章金鑰及本機設定；將認證素材打包進 APK 後，接收者仍可擷取。詳見[建置指南](docs/BUILD.zh-TW.md)。
+以 [DiPlay](https://github.com/shihabal3amri/DiPlay) 0.2.21（GPL-3.0）為基礎，後者基於
+[xcertplay](https://github.com/shilapi/xcertplay)（GPL-3.0），其主畫面/設定畫面改編自
+[DiAuto](https://github.com/shihabal3amri/DiAuto)（AGPL-3.0）。授權聲明保留在 `docs/licenses`
+與 `LICENSE` 中；散布修改版時請一併保留。為相容性保留了應用程式 ID `com.shihab.diplay` 與上游
+名稱。
