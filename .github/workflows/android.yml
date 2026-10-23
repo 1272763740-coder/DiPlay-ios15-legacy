@@ -29,24 +29,7 @@ jobs:
           set -euo pipefail
           apk="$(find mobile/build/outputs/apk/debug -name '*.apk' -print -quit)"
           test -n "$apk"
-          echo "APK: $apk"
-          listing="$(unzip -l "$apk")"
-          echo "$listing" | grep -E 'lib/[^/]+/.*\.so$' || true
-          for abi in arm64-v8a armeabi-v7a x86 x86_64; do
-            if ! echo "$listing" | grep -q "lib/$abi/libdiplay-gadget.so"; then
-              echo "missing lib/$abi/libdiplay-gadget.so in $apk" >&2
-              exit 1
-            fi
-          done
-          aapt2="$(ls "$ANDROID_HOME"/build-tools/*/aapt2 | sort -V | tail -1)"
-          manifest="$("$aapt2" dump xmltree --file AndroidManifest.xml "$apk")"
-          if ! echo "$manifest" | grep -qi 'extractNativeLibs'; then
-            echo "extractNativeLibs is absent; the platform default extracts native libraries"
-          elif ! echo "$manifest" | grep -qi 'extractNativeLibs.*0xffffffff'; then
-            echo "extractNativeLibs is false, so the helper would not reach nativeLibraryDir" >&2
-            exit 1
-          fi
-          echo "packaged legacy gadget helper verified in $apk"
+          python3 scripts/verify_legacy_gadget_apk.py "$apk"
       - name: Upload debug APK
         if: always()
         uses: actions/upload-artifact@v4
